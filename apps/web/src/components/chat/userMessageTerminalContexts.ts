@@ -17,6 +17,16 @@ export function buildInlineTerminalContextText(
   return labels.join(" ");
 }
 
+export function buildUserMessageDirectionText(
+  text: string,
+  contexts: ReadonlyArray<{
+    header: string;
+  }>,
+): string {
+  const inlinePrefix = buildInlineTerminalContextText(contexts);
+  return inlinePrefix.length > 0 ? `${text} ${inlinePrefix}` : text;
+}
+
 export function formatInlineTerminalContextLabel(header: string): string {
   const trimmedHeader = header.trim();
   const match = TERMINAL_CONTEXT_HEADER_PATTERN.exec(trimmedHeader);

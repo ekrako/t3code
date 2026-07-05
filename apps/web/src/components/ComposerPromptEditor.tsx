@@ -62,7 +62,9 @@ import {
 import {
   INLINE_TERMINAL_CONTEXT_PLACEHOLDER,
   type TerminalContextDraft,
+  formatTerminalContextLabel,
 } from "~/lib/terminalContext";
+import { dirFor } from "~/lib/rtl";
 import { cn } from "~/lib/utils";
 import { basenameOfPath } from "~/pierre-icons";
 import {
@@ -858,6 +860,19 @@ function collectTerminalContextIds(node: LexicalNode): string[] {
   return [];
 }
 
+function composerDirectionText(node: LexicalNode): string {
+  if (node instanceof ComposerTerminalContextNode) {
+    return formatTerminalContextLabel(node.__context);
+  }
+  if ($isElementNode(node)) {
+    return node
+      .getChildren()
+      .map((child) => composerDirectionText(child))
+      .join("");
+  }
+  return node.getTextContent();
+}
+
 export interface ComposerPromptEditorHandle {
   focus: () => void;
   focusAt: (cursor: number) => void;
@@ -1383,6 +1398,29 @@ function ComposerSurroundSelectionPlugin(props: {
   return null;
 }
 
+function ComposerBidiDirectionPlugin() {
+  const [editor] = useLexicalComposerContext();
+  useEffect(() => {
+    const syncRootDirection = (text: string) => {
+      const root = editor.getRootElement();
+      if (!root) return;
+      const dir = dirFor(text);
+      if (root.getAttribute("dir") !== dir) root.setAttribute("dir", dir);
+    };
+
+    const syncRootDirectionFromEditorState = () => {
+      editor.getEditorState().read(() => {
+        syncRootDirection(composerDirectionText($getRoot()));
+      });
+    };
+
+    syncRootDirectionFromEditorState();
+
+    return editor.registerUpdateListener(syncRootDirectionFromEditorState);
+  }, [editor]);
+  return null;
+}
+
 function ComposerPromptEditorInner({
   value,
   cursor,
@@ -1610,7 +1648,7 @@ function ComposerPromptEditorInner({
           contentEditable={
             <ContentEditable
               className={cn(
-                "block max-h-50 min-h-17.5 w-full overflow-y-auto whitespace-pre-wrap wrap-break-word bg-transparent text-[16px] leading-relaxed text-foreground focus:outline-none sm:text-[14px]",
+                "bidi-plaintext block max-h-50 min-h-17.5 w-full overflow-y-auto whitespace-pre-wrap wrap-break-word bg-transparent text-[16px] leading-relaxed text-foreground focus:outline-none sm:text-[14px]",
                 className,
               )}
               data-testid="composer-editor"
@@ -1634,6 +1672,7 @@ function ComposerPromptEditorInner({
         <ComposerInlineTokenArrowPlugin />
         <ComposerInlineTokenSelectionNormalizePlugin />
         <ComposerInlineTokenBackspacePlugin />
+        <ComposerBidiDirectionPlugin />
         <HistoryPlugin />
       </div>
     </ComposerTerminalContextActionsContext>

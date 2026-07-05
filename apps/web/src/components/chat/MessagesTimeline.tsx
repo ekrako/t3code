@@ -32,6 +32,7 @@ import {
   workLogEntryIsToolLike,
 } from "../../session-logic";
 import { type TurnDiffSummary } from "../../types";
+import { dirFor } from "../../lib/rtl";
 import { summarizeTurnDiffStats } from "../../lib/turnDiffTree";
 import {
   getRenderablePatch,
@@ -100,6 +101,7 @@ import { type TimestampFormat } from "@t3tools/contracts/settings";
 import { formatChatTimestampTooltip, formatShortTimestamp } from "../../timestampFormat";
 
 import {
+  buildUserMessageDirectionText,
   buildInlineTerminalContextText,
   formatInlineTerminalContextLabel,
   textContainsInlineTerminalContextLabels,
@@ -1521,6 +1523,7 @@ const UserMessageBody = memo(function UserMessageBody(props: {
       props.terminalContexts,
     );
     const inlinePrefix = buildInlineTerminalContextText(props.terminalContexts);
+    const directionText = buildUserMessageDirectionText(props.text, props.terminalContexts);
     const inlineNodes: ReactNode[] = [];
 
     if (hasEmbeddedInlineLabels) {
@@ -1561,7 +1564,10 @@ const UserMessageBody = memo(function UserMessageBody(props: {
         }
 
         return (
-          <div className="whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground">
+          <div
+            dir={dirFor(directionText)}
+            className="bidi-plaintext whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground"
+          >
             {inlineNodes}
           </div>
         );
@@ -1599,7 +1605,10 @@ const UserMessageBody = memo(function UserMessageBody(props: {
     }
 
     return (
-      <div className="whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground">
+      <div
+        dir={dirFor(directionText)}
+        className="bidi-plaintext whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground"
+      >
         {inlineNodes}
       </div>
     );
