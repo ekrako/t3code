@@ -53,6 +53,7 @@ import { useOpenInPreferredEditor } from "../editorPreferences";
 import { resolveDiffThemeName, type DiffThemeName } from "../lib/diffRendering";
 import { fnv1a32 } from "../lib/diffRendering";
 import { LRUCache } from "../lib/lruCache";
+import { dirFor, dirForMarkdown } from "../lib/rtl";
 import { useTheme } from "../hooks/useTheme";
 import { getClientSettings } from "../hooks/useSettings";
 import {
@@ -240,6 +241,100 @@ function nodeToPlainText(node: ReactNode): string {
     return nodeToPlainText(node.props.children);
   }
   return "";
+}
+
+function blockDir(children: ReactNode): "rtl" | "ltr" {
+  return dirFor(nodeToPlainText(children));
+}
+
+type MarkdownNodeWithPosition = {
+  tagName?: string | undefined;
+  children?: MarkdownNodeWithPosition[] | undefined;
+  position?:
+    | {
+        start?: { offset?: number | undefined } | undefined;
+        end?: { offset?: number | undefined } | undefined;
+      }
+    | undefined;
+};
+
+function markdownNodeSource(markdown: string, node: MarkdownNodeWithPosition | undefined): string {
+  const start = node?.position?.start?.offset;
+  const end = node?.position?.end?.offset;
+  if (
+    typeof start !== "number" ||
+    typeof end !== "number" ||
+    start < 0 ||
+    end <= start ||
+    end > markdown.length
+  ) {
+    return "";
+  }
+  return markdown.slice(start, end);
+}
+
+function listItemOwnMarkdown(markdown: string, node: MarkdownNodeWithPosition): string {
+  const source = markdownNodeSource(markdown, node);
+  if (source.length === 0) return "";
+
+  const nodeStart = node.position?.start?.offset ?? 0;
+  const nodeEnd = node.position?.end?.offset ?? nodeStart;
+  const nestedListRanges = (node.children ?? [])
+    .filter((child) => child.tagName === "ul" || child.tagName === "ol")
+    .map((child) => ({
+      start: child.position?.start?.offset,
+      end: child.position?.end?.offset,
+    }))
+    .filter(
+      (range): range is { start: number; end: number } =>
+        typeof range.start === "number" &&
+        typeof range.end === "number" &&
+        range.start >= nodeStart &&
+        range.end <= nodeEnd &&
+        range.end > range.start,
+    )
+    .sort((a, b) => b.start - a.start);
+
+  return nestedListRanges.reduce(
+    (directSource, range) =>
+      directSource.slice(0, range.start - nodeStart) + directSource.slice(range.end - nodeStart),
+    source,
+  );
+}
+
+function listOwnMarkdown(markdown: string, node: MarkdownNodeWithPosition): string {
+  return (node.children ?? [])
+    .filter((child) => child.tagName === "li")
+    .map((child) => listItemOwnMarkdown(markdown, child))
+    .join("\n");
+}
+
+function blockDirForMarkdownNode(
+  markdown: string,
+  node: MarkdownNodeWithPosition | undefined,
+  children: ReactNode,
+): "rtl" | "ltr" {
+  if (node?.tagName === "ul" || node?.tagName === "ol") {
+    const listSource = listOwnMarkdown(markdown, node);
+    return listSource.length > 0 ? dirForMarkdown(listSource) : blockDir(children);
+  }
+  if (node?.tagName === "li") {
+    const listItemSource = listItemOwnMarkdown(markdown, node);
+    return listItemSource.length > 0 ? dirForMarkdown(listItemSource) : blockDir(children);
+  }
+
+  const start = node?.position?.start?.offset;
+  const end = node?.position?.end?.offset;
+  if (
+    typeof start === "number" &&
+    typeof end === "number" &&
+    start >= 0 &&
+    end > start &&
+    end <= markdown.length
+  ) {
+    return dirForMarkdown(markdown.slice(start, end));
+  }
+  return blockDir(children);
 }
 
 function extractCodeBlock(
@@ -1328,17 +1423,88 @@ function ChatMarkdown({
   );
   const markdownComponents = useMemo<Components>(
     () => ({
-      p({ node: _node, children, ...props }) {
-        return <p {...props}>{renderSkillInlineMarkdownChildren(children, skills)}</p>;
+      p({ node, children, ...props }) {
+        return (
+          <p {...props} dir={blockDirForMarkdownNode(text, node, children)}>
+            {renderSkillInlineMarkdownChildren(children, skills)}
+          </p>
+        );
       },
       li({ node, children, ...props }) {
         const listItemStart = node?.position?.start.offset;
         const markerOffset =
           typeof listItemStart === "number" ? findTaskListMarkerOffset(text, listItemStart) : null;
         return (
-          <li {...props} data-task-marker-offset={markerOffset ?? undefined}>
+          <li
+            {...props}
+            dir={blockDirForMarkdownNode(text, node, children)}
+            data-task-marker-offset={markerOffset ?? undefined}
+          >
             {renderSkillInlineMarkdownChildren(children, skills)}
           </li>
+        );
+      },
+      h1({ node, children, ...props }) {
+        return (
+          <h1 {...props} dir={blockDirForMarkdownNode(text, node, children)}>
+            {children}
+          </h1>
+        );
+      },
+      h2({ node, children, ...props }) {
+        return (
+          <h2 {...props} dir={blockDirForMarkdownNode(text, node, children)}>
+            {children}
+          </h2>
+        );
+      },
+      h3({ node, children, ...props }) {
+        return (
+          <h3 {...props} dir={blockDirForMarkdownNode(text, node, children)}>
+            {children}
+          </h3>
+        );
+      },
+      h4({ node, children, ...props }) {
+        return (
+          <h4 {...props} dir={blockDirForMarkdownNode(text, node, children)}>
+            {children}
+          </h4>
+        );
+      },
+      h5({ node, children, ...props }) {
+        return (
+          <h5 {...props} dir={blockDirForMarkdownNode(text, node, children)}>
+            {children}
+          </h5>
+        );
+      },
+      h6({ node, children, ...props }) {
+        return (
+          <h6 {...props} dir={blockDirForMarkdownNode(text, node, children)}>
+            {children}
+          </h6>
+        );
+      },
+      ul({ node, children, ...props }) {
+        return (
+          <ul {...props} dir={blockDirForMarkdownNode(text, node, children)}>
+            {children}
+          </ul>
+        );
+      },
+      ol({ node, children, ...props }) {
+        return (
+          <ol {...props} dir={blockDirForMarkdownNode(text, node, children)}>
+            {children}
+          </ol>
+        );
+      },
+      blockquote({ node, children, ...props }) {
+        return (
+          <blockquote {...props} dir={blockDirForMarkdownNode(text, node, children)}>
+            {children}
+          </blockquote>
         );
       },
       input({ node: _node, type, checked, disabled: _disabled, ...props }) {

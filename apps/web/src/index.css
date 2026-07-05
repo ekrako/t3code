@@ -472,12 +472,12 @@ label:has(> select#reasoning-effort) select {
 }
 
 .chat-markdown ul {
-  padding-left: 1.25rem;
+  padding-inline-start: 1.25rem;
   list-style-type: disc;
 }
 
 .chat-markdown ol {
-  padding-left: 1.25rem;
+  padding-inline-start: 1.25rem;
   list-style-type: decimal;
 }
 
@@ -507,7 +507,8 @@ label:has(> select#reasoning-effort) select {
 }
 
 .chat-markdown li.task-list-item input[type="checkbox"] {
-  margin: 0 0.35em 0.15em -1.25rem;
+  margin-block: 0 0.15em;
+  margin-inline: -1.25rem 0.35em;
   vertical-align: middle;
 }
 
@@ -537,9 +538,40 @@ label:has(> select#reasoning-effort) select {
 }
 
 .chat-markdown blockquote {
-  border-left: 2px solid var(--border);
-  padding-left: 0.8rem;
+  border-inline-start: 2px solid var(--border);
+  padding-inline-start: 0.8rem;
   color: var(--muted-foreground);
+}
+
+/* Keep each bidi run isolated while honoring explicit dir attributes. */
+.bidi-plaintext {
+  unicode-bidi: isolate;
+}
+
+/* Markdown text blocks set explicit dir in React and isolate it from siblings. */
+.chat-markdown p,
+.chat-markdown li,
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3,
+.chat-markdown h4,
+.chat-markdown h5,
+.chat-markdown h6,
+.chat-markdown blockquote {
+  unicode-bidi: isolate;
+}
+
+/* Source code stays LTR even inside RTL messages. */
+.chat-markdown pre,
+.chat-markdown code,
+.chat-markdown .chat-markdown-codeblock,
+.chat-markdown .chat-markdown-shiki {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.chat-markdown .chat-markdown-table-container {
+  unicode-bidi: isolate;
 }
 
 .chat-markdown section[data-footnotes] {
