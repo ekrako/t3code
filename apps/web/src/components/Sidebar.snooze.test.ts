@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   rescheduleUndoTarget,
   resolveSnoozePresets,
+  snoozeUndoStillApplies,
   snoozeWakeDescription,
 } from "./Sidebar.snooze";
 
@@ -131,5 +132,21 @@ describe("rescheduleUndoTarget", () => {
         now,
       ),
     ).toBeNull();
+  });
+});
+
+describe("snoozeUndoStillApplies", () => {
+  it("applies while the thread still holds the wake time the toast set", () => {
+    expect(
+      snoozeUndoStillApplies({ snoozedUntil: "2026-04-09T09:00:00Z" }, "2026-04-09T09:00:00Z"),
+    ).toBe(true);
+  });
+
+  it("goes stale once the thread was rescheduled, woken, or deleted", () => {
+    expect(
+      snoozeUndoStillApplies({ snoozedUntil: "2026-04-10T09:00:00Z" }, "2026-04-09T09:00:00Z"),
+    ).toBe(false);
+    expect(snoozeUndoStillApplies({ snoozedUntil: null }, "2026-04-09T09:00:00Z")).toBe(false);
+    expect(snoozeUndoStillApplies(null, "2026-04-09T09:00:00Z")).toBe(false);
   });
 });

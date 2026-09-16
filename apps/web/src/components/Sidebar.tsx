@@ -206,6 +206,7 @@ import {
 import {
   rescheduleUndoTarget,
   resolveSnoozePresets,
+  snoozeUndoStillApplies,
   snoozeWakeDescription,
   snoozeWakeLabel,
   type SnoozePreset,
@@ -3755,6 +3756,18 @@ export default function Sidebar() {
             actionProps: {
               children: "Undo",
               onClick: () => {
+                // An older toast's Undo must not clobber a newer wake time:
+                // only undo while the thread still holds the time this toast set.
+                if (!snoozeUndoStillApplies(readThreadShell(threadRef), preset.snoozedUntil)) {
+                  toastManager.add(
+                    stackedThreadToast({
+                      type: "warning",
+                      title: "Snooze already changed",
+                      description: "This thread's wake time was updated since. Nothing to undo.",
+                    }),
+                  );
+                  return;
+                }
                 if (!previousWake) {
                   attemptUnsnooze(threadRef);
                   return;

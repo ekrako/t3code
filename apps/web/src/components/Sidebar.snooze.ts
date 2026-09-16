@@ -67,3 +67,15 @@ export function rescheduleUndoTarget(shell: ThreadSnoozeShell | null, now: Date)
   if (shell === null || !effectiveSnoozed(shell, { now: now.toISOString() })) return null;
   return shell.snoozedUntil ?? null;
 }
+
+/**
+ * Whether a snooze toast's Undo is still about the thread's current state:
+ * true only while the thread holds exactly the wake time that toast set.
+ * A later snooze, reschedule, or wake makes the older Undo stale.
+ */
+export function snoozeUndoStillApplies(
+  shell: Pick<ThreadSnoozeShell, "snoozedUntil"> | null,
+  snoozedUntilSetByToast: string,
+): boolean {
+  return shell !== null && shell.snoozedUntil === snoozedUntilSetByToast;
+}

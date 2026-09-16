@@ -14,6 +14,7 @@ import { useCallback, useMemo } from "react";
 import {
   rescheduleUndoTarget,
   resolveSnoozePresets,
+  snoozeUndoStillApplies,
   snoozeWakeDescription,
 } from "../components/Sidebar.snooze";
 import {
@@ -183,6 +184,17 @@ export function useThreadActionMenu(input: {
               actionProps: {
                 children: "Undo",
                 onClick: () => {
+                  // An older toast's Undo must not clobber a newer wake time.
+                  if (!snoozeUndoStillApplies(readThreadShell(threadRef), preset.snoozedUntil)) {
+                    toastManager.add(
+                      stackedThreadToast({
+                        type: "warning",
+                        title: "Snooze already changed",
+                        description: "This thread's wake time was updated since. Nothing to undo.",
+                      }),
+                    );
+                    return;
+                  }
                   const undo = previousWake
                     ? snoozeThread(threadRef, previousWake)
                     : unsnoozeThread(threadRef);
