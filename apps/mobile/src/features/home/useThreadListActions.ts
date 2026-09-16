@@ -265,6 +265,11 @@ export function useThreadListActions(): {
     async (thread: EnvironmentThreadShell) => (await executeAction("settle", thread)) === true,
     [executeAction],
   );
+  /**
+   * Snooze or reschedule a thread until `snoozedUntil`, guarding capability
+   * and snoozability client-side. A fresh snooze plays the row exit animation;
+   * a reschedule leaves the row in place on the snoozed shelf.
+   */
   const snoozeThread = useCallback(
     async (thread: EnvironmentThreadShell, snoozedUntil: string) => {
       const key = scopedThreadKey(thread.environmentId, thread.id);

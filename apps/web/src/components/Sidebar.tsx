@@ -3678,6 +3678,11 @@ export default function Sidebar() {
   );
   // One snooze per thread at a time — same double-dispatch guard as settle.
   const snoozingThreadKeysRef = useRef(new Set<string>());
+  /**
+   * Snooze or reschedule one thread and move forward from it when it was the
+   * open thread. Returns the outcome without toasting so batch callers can
+   * summarize; a reschedule never navigates.
+   */
   const performSnooze = useCallback(
     async (
       threadRef: ScopedThreadRef,
@@ -3723,6 +3728,11 @@ export default function Sidebar() {
     },
     [planForwardNavigation, snoozeThread],
   );
+  /**
+   * Single-thread snooze entry point: performs the snooze, then toasts the
+   * result with an Undo that wakes a fresh snooze or restores the previous
+   * wake time of a reschedule.
+   */
   const attemptSnooze = useCallback(
     (
       threadRef: ScopedThreadRef,
