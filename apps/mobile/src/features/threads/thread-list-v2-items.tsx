@@ -86,7 +86,7 @@ const SLIM_MENU_ACTIONS: MenuAction[] = [
 ];
 
 const SNOOZED_MENU_ACTIONS: MenuAction[] = [
-  { id: "unsnooze", title: "Wake thread", image: "clock" },
+  { id: "unsnooze", title: "Wake thread", image: "bell.badge" },
   { id: "delete", title: "Delete", image: "trash", attributes: { destructive: true } },
 ];
 
@@ -879,7 +879,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     if (swipeActions.primary === "unsnooze") {
       return {
         accessibilityLabel: `Wake ${thread.title} now`,
-        icon: "clock" as const,
+        icon: "bell.badge" as const,
         label: "Wake",
         onPress: handleUnsnooze,
       };
