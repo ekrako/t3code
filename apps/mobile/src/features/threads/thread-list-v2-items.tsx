@@ -509,9 +509,11 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     snoozable: canSnooze(thread, { now: new Date().toISOString() }),
     snoozed: snoozedRow,
   });
+  // Snoozed rows keep the presets too: their menu offers Reschedule.
+  const offersSnoozePresets = swipeActions.secondary === "snooze" || snoozedRow;
   const snoozePresets = useMemo(
-    () => (swipeActions.secondary === "snooze" ? resolveSnoozePresets(new Date()) : ([] as const)),
-    [props.snoozePresetMinute, swipeActions.secondary],
+    () => (offersSnoozePresets ? resolveSnoozePresets(new Date()) : ([] as const)),
+    [props.snoozePresetMinute, offersSnoozePresets],
   );
   const snoozePresetActions = useMemo<MenuAction[]>(
     () => [
@@ -609,8 +611,13 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     [arrangementMenuItems, titleMenuItems],
   );
   const snoozedMenuActions = useMemo<MenuAction[]>(
-    () => [SNOOZED_MENU_ACTIONS[0]!, ...titleMenuItems, SNOOZED_MENU_ACTIONS[1]!],
-    [titleMenuItems],
+    () => [
+      SNOOZED_MENU_ACTIONS[0]!,
+      { id: "snooze", title: "Reschedule", image: "clock", subactions: snoozePresetActions },
+      ...titleMenuItems,
+      SNOOZED_MENU_ACTIONS[1]!,
+    ],
+    [snoozePresetActions, titleMenuItems],
   );
   const legacyMenuActions = useMemo<MenuAction[]>(
     () => [

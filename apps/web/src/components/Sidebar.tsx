@@ -204,6 +204,7 @@ import {
   useLinkedThreadPullRequest,
 } from "./ThreadStatusIndicators";
 import {
+  rescheduleUndoTarget,
   resolveSnoozePresets,
   snoozeWakeDescription,
   snoozeWakeLabel,
@@ -3689,8 +3690,11 @@ export default function Sidebar() {
       snoozingThreadKeysRef.current.add(threadKey);
       try {
         // Snoozing the open thread moves you forward, same as settle —
-        // both park the thread you're done with for now.
-        const navigateAfterSnooze = planForwardNavigation(threadKey, opts.coSnoozingKeys);
+        // both park the thread you're done with for now. Rescheduling an
+        // already-snoozed thread parks nothing new, so you stay put.
+        const navigateAfterSnooze = snoozedThreadKeysRef.current.has(threadKey)
+          ? null
+          : planForwardNavigation(threadKey, opts.coSnoozingKeys);
         const result = await snoozeThread(threadRef, preset.snoozedUntil);
         if (result._tag === "Failure") {
           // Never navigate away from a thread that did not snooze.
@@ -3725,12 +3729,13 @@ export default function Sidebar() {
       opts: { coSnoozingKeys?: ReadonlySet<string> } = {},
     ) => {
       void (async () => {
+        const previousWake = rescheduleUndoTarget(readThreadShell(threadRef), new Date());
         const outcome = await performSnooze(threadRef, preset, opts);
         if (outcome.status === "failure") {
           toastManager.add(
             stackedThreadToast({
               type: "error",
-              title: "Failed to snooze thread",
+              title: `Failed to ${previousWake ? "reschedule" : "snooze"} thread`,
               description:
                 outcome.error instanceof Error ? outcome.error.message : "An error occurred.",
             }),
@@ -3739,15 +3744,36 @@ export default function Sidebar() {
         }
         if (outcome.status !== "success") return;
         // Snooze hides the row, so the toast is the only confirmation —
-        // and the Undo is the escape hatch for a mis-click.
+        // and the Undo is the escape hatch for a mis-click. Undoing a
+        // reschedule restores the previous wake time rather than waking.
+        const wakeText = snoozeWakeDescription(preset.snoozedUntil, new Date(), timestampFormat);
         toastManager.add(
           stackedThreadToast({
             type: "success",
-            title: `Snoozed until ${snoozeWakeDescription(preset.snoozedUntil, new Date(), timestampFormat)}`,
+            title: previousWake ? `Rescheduled to ${wakeText}` : `Snoozed until ${wakeText}`,
             timeout: 5_000,
             actionProps: {
               children: "Undo",
-              onClick: () => attemptUnsnooze(threadRef),
+              onClick: () => {
+                if (!previousWake) {
+                  attemptUnsnooze(threadRef);
+                  return;
+                }
+                void performSnooze(threadRef, { snoozedUntil: previousWake }).then((undone) => {
+                  if (undone.status === "failure") {
+                    toastManager.add(
+                      stackedThreadToast({
+                        type: "error",
+                        title: "Failed to restore snooze",
+                        description:
+                          undone.error instanceof Error
+                            ? undone.error.message
+                            : "An error occurred.",
+                      }),
+                    );
+                  }
+                });
+              },
             },
           }),
         );

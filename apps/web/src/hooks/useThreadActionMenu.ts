@@ -11,7 +11,11 @@ import type { ScopedThreadRef, ThreadId } from "@t3tools/contracts";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 
-import { resolveSnoozePresets, snoozeWakeDescription } from "../components/Sidebar.snooze";
+import {
+  rescheduleUndoTarget,
+  resolveSnoozePresets,
+  snoozeWakeDescription,
+} from "../components/Sidebar.snooze";
 import {
   buildThreadActionMenuItems,
   type ThreadActionMenuId,
@@ -158,24 +162,36 @@ export function useThreadActionMenu(input: {
               ? await requestCustomSnooze()
               : snoozePresets.find((candidate) => `snooze:${candidate.id}` === action);
           if (!preset) return;
+          const previousWake = rescheduleUndoTarget(readThreadShell(threadRef), new Date());
           const result = await snoozeThread(threadRef, preset.snoozedUntil);
           if (result._tag === "Failure") {
             if (!isAtomCommandInterrupted(result)) {
-              failureToast("Failed to snooze thread", squashAtomCommandFailure(result));
+              failureToast(
+                `Failed to ${previousWake ? "reschedule" : "snooze"} thread`,
+                squashAtomCommandFailure(result),
+              );
             }
             return;
           }
+          // Undoing a reschedule restores the previous wake time rather than waking.
+          const wakeText = snoozeWakeDescription(preset.snoozedUntil, new Date(), timestampFormat);
           toastManager.add(
             stackedThreadToast({
               type: "success",
-              title: `Snoozed until ${snoozeWakeDescription(preset.snoozedUntil, new Date(), timestampFormat)}`,
+              title: previousWake ? `Rescheduled to ${wakeText}` : `Snoozed until ${wakeText}`,
               timeout: 5_000,
               actionProps: {
                 children: "Undo",
                 onClick: () => {
-                  void unsnoozeThread(threadRef).then((undone) => {
+                  const undo = previousWake
+                    ? snoozeThread(threadRef, previousWake)
+                    : unsnoozeThread(threadRef);
+                  void undo.then((undone) => {
                     if (undone._tag === "Failure" && !isAtomCommandInterrupted(undone)) {
-                      failureToast("Failed to wake thread", squashAtomCommandFailure(undone));
+                      failureToast(
+                        previousWake ? "Failed to restore snooze" : "Failed to wake thread",
+                        squashAtomCommandFailure(undone),
+                      );
                     }
                   });
                 },

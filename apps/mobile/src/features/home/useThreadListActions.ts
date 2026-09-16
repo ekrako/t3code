@@ -291,22 +291,24 @@ export function useThreadListActions(): {
         }
 
         selectionHaptic();
-        const result = await withThreadDismissal(
-          key,
-          () =>
-            snoozeMutation({
-              environmentId: thread.environmentId,
-              input: {
-                threadId: thread.id,
-                snoozedUntil,
-              },
-            }),
-          (result) => result._tag === "Success",
-        );
+        const snooze = () =>
+          snoozeMutation({
+            environmentId: thread.environmentId,
+            input: {
+              threadId: thread.id,
+              snoozedUntil,
+            },
+          });
+        // A reschedule keeps the row on the snoozed shelf, so it must not
+        // play the exit animation that a fresh snooze uses.
+        const rescheduling = effectiveSnoozed(thread, { now: new Date().toISOString() });
+        const result = rescheduling
+          ? await snooze()
+          : await withThreadDismissal(key, snooze, (result) => result._tag === "Success");
         if (result._tag === "Failure") {
           const error = Cause.squash(result.cause);
           Alert.alert(
-            "Could not snooze thread",
+            rescheduling ? "Could not reschedule thread" : "Could not snooze thread",
             error instanceof Error && error.message.trim().length > 0
               ? error.message
               : "The thread could not be snoozed.",
