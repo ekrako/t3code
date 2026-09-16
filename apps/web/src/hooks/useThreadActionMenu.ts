@@ -14,7 +14,7 @@ import { useCallback, useMemo } from "react";
 import {
   rescheduleUndoTarget,
   resolveSnoozePresets,
-  snoozeUndoStillApplies,
+  resolveSnoozeUndo,
   snoozeWakeDescription,
 } from "../components/Sidebar.snooze";
 import {
@@ -184,8 +184,12 @@ export function useThreadActionMenu(input: {
               actionProps: {
                 children: "Undo",
                 onClick: () => {
-                  // An older toast's Undo must not clobber a newer wake time.
-                  if (!snoozeUndoStillApplies(readThreadShell(threadRef), preset.snoozedUntil)) {
+                  const undo = resolveSnoozeUndo({
+                    shell: readThreadShell(threadRef),
+                    snoozedUntilSetByToast: preset.snoozedUntil,
+                    previousWake,
+                  });
+                  if (undo.kind === "stale") {
                     toastManager.add(
                       stackedThreadToast({
                         type: "warning",
@@ -195,13 +199,16 @@ export function useThreadActionMenu(input: {
                     );
                     return;
                   }
-                  const undo = previousWake
-                    ? snoozeThread(threadRef, previousWake)
-                    : unsnoozeThread(threadRef);
-                  void undo.then((undone) => {
+                  const run =
+                    undo.kind === "restore"
+                      ? snoozeThread(threadRef, undo.snoozedUntil)
+                      : unsnoozeThread(threadRef);
+                  void run.then((undone) => {
                     if (undone._tag === "Failure" && !isAtomCommandInterrupted(undone)) {
                       failureToast(
-                        previousWake ? "Failed to restore snooze" : "Failed to wake thread",
+                        undo.kind === "restore"
+                          ? "Failed to restore snooze"
+                          : "Failed to wake thread",
                         squashAtomCommandFailure(undone),
                       );
                     }

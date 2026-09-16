@@ -3,7 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   rescheduleUndoTarget,
   resolveSnoozePresets,
-  snoozeUndoStillApplies,
+  resolveSnoozeUndo,
   snoozeWakeDescription,
 } from "./Sidebar.snooze";
 
@@ -135,18 +135,50 @@ describe("rescheduleUndoTarget", () => {
   });
 });
 
-describe("snoozeUndoStillApplies", () => {
-  it("applies while the thread still holds the wake time the toast set", () => {
+describe("resolveSnoozeUndo", () => {
+  const setByToast = "2026-04-09T09:00:00Z";
+  const previousWake = "2026-04-08T18:00:00Z";
+
+  it("restores the previous wake time when undoing a reschedule", () => {
     expect(
-      snoozeUndoStillApplies({ snoozedUntil: "2026-04-09T09:00:00Z" }, "2026-04-09T09:00:00Z"),
-    ).toBe(true);
+      resolveSnoozeUndo({
+        shell: { snoozedUntil: setByToast },
+        snoozedUntilSetByToast: setByToast,
+        previousWake,
+      }),
+    ).toEqual({ kind: "restore", snoozedUntil: previousWake });
   });
 
-  it("goes stale once the thread was rescheduled, woken, or deleted", () => {
+  it("wakes the thread when undoing a fresh snooze", () => {
     expect(
-      snoozeUndoStillApplies({ snoozedUntil: "2026-04-10T09:00:00Z" }, "2026-04-09T09:00:00Z"),
-    ).toBe(false);
-    expect(snoozeUndoStillApplies({ snoozedUntil: null }, "2026-04-09T09:00:00Z")).toBe(false);
-    expect(snoozeUndoStillApplies(null, "2026-04-09T09:00:00Z")).toBe(false);
+      resolveSnoozeUndo({
+        shell: { snoozedUntil: setByToast },
+        snoozedUntilSetByToast: setByToast,
+        previousWake: null,
+      }),
+    ).toEqual({ kind: "wake" });
+  });
+
+  it("is stale once a newer reschedule replaced the toast's wake time", () => {
+    expect(
+      resolveSnoozeUndo({
+        shell: { snoozedUntil: "2026-04-10T09:00:00Z" },
+        snoozedUntilSetByToast: setByToast,
+        previousWake,
+      }),
+    ).toEqual({ kind: "stale" });
+  });
+
+  it("is stale once the thread was woken or is gone", () => {
+    expect(
+      resolveSnoozeUndo({
+        shell: { snoozedUntil: null },
+        snoozedUntilSetByToast: setByToast,
+        previousWake,
+      }),
+    ).toEqual({ kind: "stale" });
+    expect(
+      resolveSnoozeUndo({ shell: null, snoozedUntilSetByToast: setByToast, previousWake: null }),
+    ).toEqual({ kind: "stale" });
   });
 });

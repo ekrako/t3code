@@ -68,14 +68,26 @@ export function rescheduleUndoTarget(shell: ThreadSnoozeShell | null, now: Date)
   return shell.snoozedUntil ?? null;
 }
 
+export type SnoozeUndo =
+  | { readonly kind: "stale" }
+  | { readonly kind: "wake" }
+  | { readonly kind: "restore"; readonly snoozedUntil: string };
+
 /**
- * Whether a snooze toast's Undo is still about the thread's current state:
- * true only while the thread holds exactly the wake time that toast set.
- * A later snooze, reschedule, or wake makes the older Undo stale.
+ * What a snooze toast's Undo should do when clicked. Stale once the thread
+ * no longer holds the wake time that toast set (a later snooze, reschedule,
+ * or wake), so an older toast never overwrites a newer choice. Otherwise a
+ * reschedule restores the previous wake time and a fresh snooze wakes.
  */
-export function snoozeUndoStillApplies(
-  shell: Pick<ThreadSnoozeShell, "snoozedUntil"> | null,
-  snoozedUntilSetByToast: string,
-): boolean {
-  return shell !== null && shell.snoozedUntil === snoozedUntilSetByToast;
+export function resolveSnoozeUndo(input: {
+  readonly shell: Pick<ThreadSnoozeShell, "snoozedUntil"> | null;
+  readonly snoozedUntilSetByToast: string;
+  readonly previousWake: string | null;
+}): SnoozeUndo {
+  if (input.shell === null || input.shell.snoozedUntil !== input.snoozedUntilSetByToast) {
+    return { kind: "stale" };
+  }
+  return input.previousWake === null
+    ? { kind: "wake" }
+    : { kind: "restore", snoozedUntil: input.previousWake };
 }

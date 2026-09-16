@@ -206,7 +206,7 @@ import {
 import {
   rescheduleUndoTarget,
   resolveSnoozePresets,
-  snoozeUndoStillApplies,
+  resolveSnoozeUndo,
   snoozeWakeDescription,
   snoozeWakeLabel,
   type SnoozePreset,
@@ -3756,9 +3756,12 @@ export default function Sidebar() {
             actionProps: {
               children: "Undo",
               onClick: () => {
-                // An older toast's Undo must not clobber a newer wake time:
-                // only undo while the thread still holds the time this toast set.
-                if (!snoozeUndoStillApplies(readThreadShell(threadRef), preset.snoozedUntil)) {
+                const undo = resolveSnoozeUndo({
+                  shell: readThreadShell(threadRef),
+                  snoozedUntilSetByToast: preset.snoozedUntil,
+                  previousWake,
+                });
+                if (undo.kind === "stale") {
                   toastManager.add(
                     stackedThreadToast({
                       type: "warning",
@@ -3768,24 +3771,26 @@ export default function Sidebar() {
                   );
                   return;
                 }
-                if (!previousWake) {
+                if (undo.kind === "wake") {
                   attemptUnsnooze(threadRef);
                   return;
                 }
-                void performSnooze(threadRef, { snoozedUntil: previousWake }).then((undone) => {
-                  if (undone.status === "failure") {
-                    toastManager.add(
-                      stackedThreadToast({
-                        type: "error",
-                        title: "Failed to restore snooze",
-                        description:
-                          undone.error instanceof Error
-                            ? undone.error.message
-                            : "An error occurred.",
-                      }),
-                    );
-                  }
-                });
+                void performSnooze(threadRef, { snoozedUntil: undo.snoozedUntil }).then(
+                  (undone) => {
+                    if (undone.status === "failure") {
+                      toastManager.add(
+                        stackedThreadToast({
+                          type: "error",
+                          title: "Failed to restore snooze",
+                          description:
+                            undone.error instanceof Error
+                              ? undone.error.message
+                              : "An error occurred.",
+                        }),
+                      );
+                    }
+                  },
+                );
               },
             },
           }),
