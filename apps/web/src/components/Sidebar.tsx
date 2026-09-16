@@ -4157,8 +4157,11 @@ export default function Sidebar() {
       snoozingThreadKeysRef.current.add(threadKey);
       try {
         // Snoozing the open thread moves you forward, same as settle —
-        // both park the thread you're done with for now.
-        const navigateAfterSnooze = planForwardNavigation(threadKey, opts.coSnoozingKeys);
+        // both park the thread you're done with for now. Rescheduling an
+        // already-snoozed thread parks nothing new, so you stay put.
+        const navigateAfterSnooze = snoozedThreadKeysRef.current.has(threadKey)
+          ? null
+          : planForwardNavigation(threadKey, opts.coSnoozingKeys);
         const result = await snoozeThread(threadRef, preset.snoozedUntil);
         if (result._tag === "Failure") {
           // Never navigate away from a thread that did not snooze.
