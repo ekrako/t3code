@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  bumpSnoozeGeneration,
+  readSnoozeGeneration,
   rescheduleUndoTarget,
   resolveSnoozePresets,
   resolveSnoozeUndo,
@@ -138,12 +140,14 @@ describe("rescheduleUndoTarget", () => {
 describe("resolveSnoozeUndo", () => {
   const setByToast = "2026-04-09T09:00:00Z";
   const previousWake = "2026-04-08T18:00:00Z";
+  const sameGeneration = { generationSetByToast: 1, currentGeneration: 1 };
 
   it("restores the previous wake time when undoing a reschedule", () => {
     expect(
       resolveSnoozeUndo({
         shell: { snoozedUntil: setByToast },
         snoozedUntilSetByToast: setByToast,
+        ...sameGeneration,
         previousWake,
       }),
     ).toEqual({ kind: "restore", snoozedUntil: previousWake });
@@ -154,6 +158,7 @@ describe("resolveSnoozeUndo", () => {
       resolveSnoozeUndo({
         shell: { snoozedUntil: setByToast },
         snoozedUntilSetByToast: setByToast,
+        ...sameGeneration,
         previousWake: null,
       }),
     ).toEqual({ kind: "wake" });
@@ -164,21 +169,54 @@ describe("resolveSnoozeUndo", () => {
       resolveSnoozeUndo({
         shell: { snoozedUntil: "2026-04-10T09:00:00Z" },
         snoozedUntilSetByToast: setByToast,
+        generationSetByToast: 1,
+        currentGeneration: 2,
         previousWake,
       }),
     ).toEqual({ kind: "stale" });
   });
 
-  it("is stale once the thread was woken or is gone", () => {
+  it("is stale after A → B → A even though the wake time matches again", () => {
+    const threadKey = "env:thread-aba";
+    const firstToast = bumpSnoozeGeneration(threadKey);
+    bumpSnoozeGeneration(threadKey);
+    const thirdToast = bumpSnoozeGeneration(threadKey);
+    expect(
+      resolveSnoozeUndo({
+        shell: { snoozedUntil: setByToast },
+        snoozedUntilSetByToast: setByToast,
+        generationSetByToast: firstToast,
+        currentGeneration: readSnoozeGeneration(threadKey),
+        previousWake: null,
+      }),
+    ).toEqual({ kind: "stale" });
+    expect(
+      resolveSnoozeUndo({
+        shell: { snoozedUntil: setByToast },
+        snoozedUntilSetByToast: setByToast,
+        generationSetByToast: thirdToast,
+        currentGeneration: readSnoozeGeneration(threadKey),
+        previousWake,
+      }),
+    ).toEqual({ kind: "restore", snoozedUntil: previousWake });
+  });
+
+  it("is stale once the thread was woken from elsewhere or is gone", () => {
     expect(
       resolveSnoozeUndo({
         shell: { snoozedUntil: null },
         snoozedUntilSetByToast: setByToast,
+        ...sameGeneration,
         previousWake,
       }),
     ).toEqual({ kind: "stale" });
     expect(
-      resolveSnoozeUndo({ shell: null, snoozedUntilSetByToast: setByToast, previousWake: null }),
+      resolveSnoozeUndo({
+        shell: null,
+        snoozedUntilSetByToast: setByToast,
+        ...sameGeneration,
+        previousWake: null,
+      }),
     ).toEqual({ kind: "stale" });
   });
 });

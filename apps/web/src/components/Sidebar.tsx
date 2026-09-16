@@ -204,6 +204,8 @@ import {
   useLinkedThreadPullRequest,
 } from "./ThreadStatusIndicators";
 import {
+  bumpSnoozeGeneration,
+  readSnoozeGeneration,
   rescheduleUndoTarget,
   resolveSnoozePresets,
   resolveSnoozeUndo,
@@ -3721,7 +3723,7 @@ export default function Sidebar() {
         ) {
           navigateAfterSnooze?.();
         }
-        return { status: "success" } as const;
+        return { status: "success", generation: bumpSnoozeGeneration(threadKey) } as const;
       } finally {
         snoozingThreadKeysRef.current.delete(threadKey);
       }
@@ -3769,6 +3771,8 @@ export default function Sidebar() {
                 const undo = resolveSnoozeUndo({
                   shell: readThreadShell(threadRef),
                   snoozedUntilSetByToast: preset.snoozedUntil,
+                  generationSetByToast: outcome.generation,
+                  currentGeneration: readSnoozeGeneration(scopedThreadKey(threadRef)),
                   previousWake,
                 });
                 if (undo.kind === "stale") {

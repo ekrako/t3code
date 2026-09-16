@@ -12,6 +12,8 @@ import { useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 
 import {
+  bumpSnoozeGeneration,
+  readSnoozeGeneration,
   rescheduleUndoTarget,
   resolveSnoozePresets,
   resolveSnoozeUndo,
@@ -174,6 +176,7 @@ export function useThreadActionMenu(input: {
             }
             return;
           }
+          const generation = bumpSnoozeGeneration(scopedThreadKey(threadRef));
           // Undoing a reschedule restores the previous wake time rather than waking.
           const wakeText = snoozeWakeDescription(preset.snoozedUntil, new Date(), timestampFormat);
           toastManager.add(
@@ -187,6 +190,8 @@ export function useThreadActionMenu(input: {
                   const undo = resolveSnoozeUndo({
                     shell: readThreadShell(threadRef),
                     snoozedUntilSetByToast: preset.snoozedUntil,
+                    generationSetByToast: generation,
+                    currentGeneration: readSnoozeGeneration(scopedThreadKey(threadRef)),
                     previousWake,
                   });
                   if (undo.kind === "stale") {

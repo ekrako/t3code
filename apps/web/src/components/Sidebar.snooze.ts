@@ -73,18 +73,43 @@ export type SnoozeUndo =
   | { readonly kind: "wake" }
   | { readonly kind: "restore"; readonly snoozedUntil: string };
 
+// Counts snoozes this client issued per thread. Toasts capture the value so
+// an older toast's Undo goes stale after A → B → A even though the wake time
+// matches again. Server-side `snoozedAt` cannot serve here: the shell carries
+// an optimistic client-clock value until the server snapshot lands.
+const snoozeGenerationByThreadKey = new Map<string, number>();
+
+/** Record one more successful snooze for a thread; returns the new generation. */
+export function bumpSnoozeGeneration(threadKey: string): number {
+  const next = (snoozeGenerationByThreadKey.get(threadKey) ?? 0) + 1;
+  snoozeGenerationByThreadKey.set(threadKey, next);
+  return next;
+}
+
+/** The generation of the latest successful snooze this client issued for a thread. */
+export function readSnoozeGeneration(threadKey: string): number {
+  return snoozeGenerationByThreadKey.get(threadKey) ?? 0;
+}
+
 /**
- * What a snooze toast's Undo should do when clicked. Stale once the thread
- * no longer holds the wake time that toast set (a later snooze, reschedule,
- * or wake), so an older toast never overwrites a newer choice. Otherwise a
- * reschedule restores the previous wake time and a fresh snooze wakes.
+ * What a snooze toast's Undo should do when clicked. Stale once a later
+ * snooze happened (generation moved on) or the thread no longer holds the
+ * wake time that toast set (woken, or changed from another client), so an
+ * older toast never overwrites a newer choice. Otherwise a reschedule
+ * restores the previous wake time and a fresh snooze wakes.
  */
 export function resolveSnoozeUndo(input: {
   readonly shell: Pick<ThreadSnoozeShell, "snoozedUntil"> | null;
   readonly snoozedUntilSetByToast: string;
+  readonly generationSetByToast: number;
+  readonly currentGeneration: number;
   readonly previousWake: string | null;
 }): SnoozeUndo {
-  if (input.shell === null || input.shell.snoozedUntil !== input.snoozedUntilSetByToast) {
+  if (
+    input.shell === null ||
+    input.currentGeneration !== input.generationSetByToast ||
+    input.shell.snoozedUntil !== input.snoozedUntilSetByToast
+  ) {
     return { kind: "stale" };
   }
   return input.previousWake === null
