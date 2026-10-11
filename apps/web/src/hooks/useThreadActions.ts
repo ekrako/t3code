@@ -967,17 +967,20 @@ export function useThreadActions() {
         return result;
       }
       // Snooze hides the row, so keep its confirmation in the sidebar. Undoing
-      // a reschedule restores the previous wake time rather than waking.
+      // a reschedule restores the previous wake time rather than waking, unless
+      // that time has passed: the thread would have woken by then.
       showThreadUndoNotice(
         previousWake
           ? {
               action: "Rescheduled",
               claim: action,
               undo: () =>
-                snoozeThreadMutation({
-                  environmentId: target.environmentId,
-                  input: { threadId: target.threadId, snoozedUntil: previousWake },
-                }),
+                Date.parse(previousWake) > Date.now()
+                  ? snoozeThreadMutation({
+                      environmentId: target.environmentId,
+                      input: { threadId: target.threadId, snoozedUntil: previousWake },
+                    })
+                  : unsnoozeThread(target),
               failureTitle: "Failed to restore the previous wake time",
             }
           : {
