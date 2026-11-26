@@ -83,7 +83,7 @@ export default function WorkflowPane({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-(--workspace-topbar-height) shrink-0 items-center gap-1 border-b ps-2 pe-2">
+      <div className="flex h-(--workspace-topbar-height) shrink-0 items-center gap-1 border-b ps-2 pe-2 rtl:pe-(--workspace-controls-left)">
         <div
           role="tablist"
           aria-label={gt("Open beside the run")}
